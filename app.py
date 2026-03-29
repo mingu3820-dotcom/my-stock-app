@@ -62,3 +62,44 @@ if st.button("분석 시작"):
                         st.write("뉴스 정보를 불러오지 못했습니다.")
         except Exception as e:
             st.error(f"오류 발생: {e}")
+# (앞부분 생략 - 이전과 동일)
+
+# 5. 구글 뉴스 (디테일 강화 버전)
+st.subheader(f"📰 {target_name} 관점 분석 뉴스")
+
+# 내가 보기 싫은 단어들 (노이즈 제거)
+bad_words = ["광고", "추천주", "무료체험", "카톡방", "종목상담", "급등주"]
+# 내가 중요하게 보는 단어들 (하이라이트)
+good_words = ["공급계약", "수주", "증자", "특허", "신사업", "최대실적"]
+
+try:
+    gn = GoogleNews(lang='ko', period='7d')
+    gn.search(target_name)
+    news_results = gn.results()
+
+    if news_results:
+        for item in news_results[:15]:
+            title = item.get('title')
+            
+            # 1. 보기 싫은 뉴스 거르기
+            if any(word in title for word in bad_words):
+                continue
+            
+            # 2. 중요한 뉴스 강조하기
+            display_title = title
+            is_important = False
+            for word in good_words:
+                if word in title:
+                    display_title = f"🔥 [핵심] {title}"
+                    is_important = True
+                    break
+            
+            # 3. 화면 출력
+            if is_important:
+                st.write(f"**{display_title}** ({item.get('media')})")
+            else:
+                st.write(f"- {title} ({item.get('media')})")
+    else:
+        st.write("최근 뉴스가 없습니다.")
+except:
+    st.write("뉴스 분석 중 오류 발생")
