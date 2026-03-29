@@ -5,6 +5,7 @@ from sklearn.ensemble import RandomForestClassifier
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+from datetime import datetime, timedelta
 
 # 앱 설정
 st.set_page_config(page_title="민구의 AI 분석기", layout="wide")
@@ -12,11 +13,8 @@ st.title("📈 민구의 AI 주식 분석기")
 
 target_name = st.text_input("분석할 종목명을 입력하세요", "삼성전자")
 
-# 허용할 언론사 (민구 님 픽: 매일, 서울, 한국경제)
-allowed_media = ["매일경제", "서울경제", "한국경제"]
-
 if st.button("분석 시작"):
-    with st.spinner('네이버 증권 뉴스를 선별 중입니다...'):
+    with st.spinner('일주일치 뉴스를 샅샅이 뒤지는 중입니다...'):
         try:
             # 1. 주가 분석 파트
             df_all = fdr.StockListing('KRX')
@@ -42,37 +40,35 @@ if st.button("분석 시작"):
                 
                 st.divider()
 
-                # 2. 뉴스 파트 (네이버 증권 뉴스 직접 수집)
-                st.subheader(f"📰 {target_name} 네이버 증권 뉴스 (경제 3사)")
+                # 2. 뉴스 파트 (여러 페이지 수집)
+                st.subheader(f"📰 {target_name} 최신 증권 뉴스 (최대 3페이지)")
                 
-                # 네이버 증권 뉴스 검색 URL (종목 코드로 검색)
-                news_url = f"https://finance.naver.com/item/news_news.naver?code={ticker}&page=1"
-                headers = {"User-Agent": "Mozilla/5.0"}
-                resp = requests.get(news_url, headers=headers)
-                # 네이버 금융은 EUK-KR 인코딩을 쓰는 경우가 많아 한글 깨짐 방지 설정
-                resp.encoding = 'euc-kr' 
-                soup = BeautifulSoup(resp.text, 'html.parser')
-                
-                # 뉴스 목록 추출
-                titles = soup.select('td.title > a')
-                infos = soup.select('td.info') # 언론사 정보
-
                 count = 0
-                for title_tag, info_tag in zip(titles, infos):
-                    press = info_tag.text.strip()
-                    # 지정된 3개 언론사만 필터링
-                    if any(m in press for m in allowed_media):
-                        title_text = title_tag.text.strip()
-                        # 링크 주소 완성
-                        link = "https://finance.naver.com" + title_tag['href']
+                for page in range(1, 4): # 1페이지부터 3페이지까지 수집
+                    news_url = f"https://finance.naver.com/item/news_news.naver?code={ticker}&page={page}"
+                    headers = {"User-Agent": "Mozilla/5.0"}
+                    resp = requests.get(news_url, headers=headers)
+                    resp.encoding = 'euc-kr'
+                    soup = BeautifulSoup(resp.text, 'html.parser')
+                    
+                    titles = soup.select('td.title > a')
+                    infos = soup.select('td.info')
+                    dates = soup.select('td.date')
+
+                    if not titles:
+                        break
+
+                    for i in range(len(titles)):
+                        title_text = titles[i].text.strip()
+                        press_text = infos[i].text.strip()
+                        date_text = dates[i].text.strip()
+                        link = "https://finance.naver.com" + titles[i]['href']
                         
-                        st.write(f"• [{press}] [{title_text}](%s)" % link)
+                        st.write(f"• [{press_text}] [{title_text}](%s) <span style='color:gray; font-size:12px;'>{date_text}</span>" % link, unsafe_allow_html=True)
                         count += 1
-                        if count >= 10: break
                 
                 if count == 0:
-                    st.info("최근 네이버 증권에 올라온 경제 3사 뉴스가 없습니다.")
-                    st.write(f"[여기 눌러서 전체 뉴스 보기](https://finance.naver.com/item/news.naver?code={ticker})")
+                    st.info("최근 네이버 증권에 올라온 뉴스가 없습니다.")
                     
         except Exception as e:
             st.error("데이터를 불러오는 중 오류가 발생했습니다.")
