@@ -3,8 +3,8 @@ import yfinance as yf
 import FinanceDataReader as fdr
 from sklearn.ensemble import RandomForestClassifier
 import pandas as pd
-import requests
-from bs4 import BeautifulSoup
+import feedparser
+from datetime import datetime
 
 # 앱 설정
 st.set_page_config(page_title="민구의 AI 분석기", layout="wide")
@@ -13,7 +13,7 @@ st.title("📈 민구의 AI 주식 분석기")
 target_name = st.text_input("분석할 종목명을 입력하세요", "삼성전자")
 
 if st.button("분석 시작"):
-    with st.spinner('일주일치 뉴스를 샅샅이 긁어오는 중...'):
+    with st.spinner('AI 분석 및 최신 뉴스를 불러오는 중입니다...'):
         try:
             # 1. 주가 분석 파트
             df_all = fdr.StockListing('KRX')
@@ -39,38 +39,26 @@ if st.button("분석 시작"):
                 
                 st.divider()
 
-                # 2. 뉴스 파트 (네이버 전체 뉴스 검색 방식)
-                st.subheader(f"📰 {target_name} 일주일치 뉴스 리스트")
+                # 2. 뉴스 파트 (안정적인 구글 RSS 방식)
+                st.subheader(f"📰 {target_name} 실시간 주요 뉴스")
                 
-                # 최신순 정렬(sort=1)로 일주일치 뉴스 수집
-                count = 0
-                for start in [1, 11, 21]: # 총 30개 뉴스 확인
-                    search_url = f"https://search.naver.com/search.naver?where=news&query={target_name}&sort=1&start={start}"
-                    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
-                    resp = requests.get(search_url, headers=headers)
-                    soup = BeautifulSoup(resp.text, 'html.parser')
-                    news_items = soup.select('ul.list_news > li')
+                # 구글 뉴스 RSS 피드 주소 (한글, 한국 지역 설정)
+                rss_url = f"https://news.google.com/rss/search?q={target_name}+when:7d&hl=ko&gl=KR&ceid=KR:ko"
+                feed = feedparser.parse(rss_url)
 
-                    if not news_items: break
-
-                    for item in news_items:
-                        try:
-                            # 언론사
-                            press = item.select_one('a.info.press').text.replace('언론사 선정', '').strip()
-                            # 제목 및 링크
-                            title_anchor = item.select_one('a.news_tit')
-                            title = title_anchor.text
-                            link = title_anchor['href']
-                            # 날짜
-                            date = item.select_one('span.info').text
-                            
-                            st.write(f"• [{press}] [{title}](%s) <span style='color:gray; font-size:12px;'>({date})</span>" % link, unsafe_allow_html=True)
-                            count += 1
-                        except:
-                            continue
-                
-                if count == 0:
-                    st.info("뉴스를 가져오지 못했습니다. 잠시 후 다시 시도해 주세요.")
+                if feed.entries:
+                    for i, entry in enumerate(feed.entries[:20]): # 최대 20개
+                        title = entry.title
+                        link = entry.link
+                        published = entry.published
+                        # 언론사 분리 (보통 제목 끝에 - 언론사 형태로 붙음)
+                        parts = title.rsplit(' - ', 1)
+                        clean_title = parts[0]
+                        media = parts[1] if len(parts) > 1 else "뉴스"
+                        
+                        st.write(f"• [{media}] [{clean_title}](%s) <span style='color:gray; font-size:12px;'>({published[:16]})</span>" % link, unsafe_allow_html=True)
+                else:
+                    st.info("최근 일주일간 검색된 뉴스가 없습니다.")
                     
         except Exception as e:
-            st.error("데이터를 불러오는 중 오류가 발생했습니다.")
+            st.error("분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
