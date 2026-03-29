@@ -20,7 +20,7 @@ st.title("📊 민구의 주식 수급/데이터 분석기")
 target_name = st.text_input("종목명을 입력하세요", "삼성전자")
 
 if st.button("데이터 분석 시작"):
-    with st.spinner('실시간 수급과 뉴스를 긁어오는 중...'):
+    with st.spinner('실시간 수급과 뉴스를 분석 중입니다...'):
         try:
             # 1. 종목 코드 찾기
             df_all = fdr.StockListing('KRX')
@@ -32,7 +32,7 @@ if st.button("데이터 분석 시작"):
                 ticker = ticker_row['Code'].values[0]
                 full_ticker = ticker + (".KS" if ticker.isdigit() else ".KQ")
                 
-                # 2. 데이터 가져오기 (가장 가벼운 1개월치만 사용)
+                # 2. 데이터 가져오기 (가벼운 1개월치 사용)
                 data = yf.download(full_ticker, period="1mo", progress=False).dropna()
                 
                 if not data.empty:
@@ -57,21 +57,25 @@ if st.button("데이터 분석 시작"):
 
                     st.divider()
 
-                    # 3. 실시간 뉴스 (RSS 방식 - 가장 안정적)
-                    st.subheader(f"📰 {target_name} 일주일치 주요 뉴스")
-                    rss_url = f"https://news.google.com/rss/search?q={target_name}+when:7d&hl=ko&gl=KR&ceid=KR:ko"
-                    feed = feedparser.parse(rss_url)
+                    # 3. 실시간 뉴스 (RSS 방식 + 실패 방지 로직)
+                    st.subheader(f"📰 {target_name} 최신 뉴스")
+                    try:
+                        rss_url = f"https://news.google.com/rss/search?q={target_name}+when:7d&hl=ko&gl=KR&ceid=KR:ko"
+                        feed = feedparser.parse(rss_url)
 
-                    if feed.entries:
-                        for entry in feed.entries[:12]:
-                            # 제목에서 언론사 분리
-                            title = entry.title.rsplit(' - ', 1)[0]
-                            link = entry.link
-                            st.write(f"• [{title}](%s)" % link)
-                    else:
-                        st.info("최근 일주일간 뉴스가 없습니다.")
+                        if feed.entries:
+                            for entry in feed.entries[:10]:
+                                title = entry.title.rsplit(' - ', 1)[0]
+                                link = entry.link
+                                st.write(f"• [{title}](%s)" % link)
+                        else:
+                            st.info("최근 일주일간 뉴스가 없습니다.")
+                            st.link_button(f"🔗 네이버에서 {target_name} 뉴스 직접 보기", f"https://search.naver.com/search.naver?where=news&query={target_name}")
+                    except:
+                        st.warning("뉴스 서버 응답이 지연되고 있습니다.")
+                        st.link_button(f"🔗 여기를 눌러 {target_name} 뉴스 바로 확인", f"https://search.naver.com/search.naver?where=news&query={target_name}")
                 else:
-                    st.warning("주가 데이터를 가져올 수 없습니다.")
+                    st.warning("주가 데이터를 가져오지 못했습니다.")
 
         except Exception as e:
-            st.error("데이터 로드 중 일시적인 지연이 발생했습니다. 10초 뒤에 다시 눌러주세요.")
+            st.error("분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
