@@ -1,3 +1,4 @@
+    st.write("뉴스 분석 중 오류 발생")
 import streamlit as st
 import yfinance as yf
 import FinanceDataReader as fdr
@@ -5,16 +6,20 @@ from sklearn.ensemble import RandomForestClassifier
 from GoogleNews import GoogleNews
 import pandas as pd
 
-# 앱 화면 설정
-st.set_page_config(page_title="민구의 AI 분석기")
+# 앱 설정
+st.set_page_config(page_title="민구의 AI 분석기", layout="wide")
 st.title("📈 민구의 AI 주식 분석기")
 
-target_name = st.text_input("종목명을 정확히 입력하세요", "삼성전자")
+target_name = st.text_input("분석할 종목명을 입력하세요", "삼성전자")
+
+# 필터링 단어 설정 (주식과 상관없는 뉴스나 광고 제거)
+bad_words = ["광고", "추천주", "무료체험", "카톡방", "상담", "급등주", "문의", "이벤트", "클릭"]
+good_words = ["공급계약", "수주", "증자", "특허", "신사업", "최대실적", "M&A", "인수", "발표"]
 
 if st.button("분석 시작"):
-    with st.spinner('AI가 데이터를 분석 중입니다...'):
+    with st.spinner('데이터 분석 및 뉴스를 선별 중입니다...'):
         try:
-            # 1. 종목 코드 찾기
+            # 1. 주가 분석 파트
             df_all = fdr.StockListing('KRX')
             ticker_row = df_all[df_all['Name'] == target_name]
             
@@ -23,83 +28,52 @@ if st.button("분석 시작"):
             else:
                 ticker = ticker_row['Code'].values[0]
                 full_ticker = ticker + (".KS" if ticker.isdigit() else ".KQ")
-                
-                # 2. 데이터 가져오기
                 data = yf.download(full_ticker, period="3mo", progress=False).dropna()
                 
-                if len(data) < 20:
-                    st.warning("데이터가 너무 적어 분석이 불가능합니다.")
-                else:
-                    # 3. AI 학습 및 예측
+                if len(data) >= 20:
                     data['Target'] = (data['Close'].shift(-1) > data['Close']).astype(int)
                     features = ['Open', 'High', 'Low', 'Close', 'Volume']
                     train_df = data.dropna()
-                    
-                    X = train_df[features].iloc[:-1]
-                    y = train_df['Target'].iloc[:-1]
-                    
                     model = RandomForestClassifier(n_estimators=100, random_state=1)
-                    model.fit(X, y)
-                    
+                    model.fit(train_df[features].iloc[:-1], train_df['Target'].iloc[:-1])
                     prob = model.predict_proba(train_df[features].tail(1))[0][1]
+                    
+                    st.success("AI 분석 완료")
+                    st.metric(label=f"{target_name} 내일 상승 예측 확률", value=f"{prob*100:.1f}%")
+                
+                st.divider()
 
-                    # 4. 결과 출력
-                    st.success("분석 완료!")
-                    st.metric(label=f"{target_name} 내일 상승 확률", value=f"{prob*100:.1f}%")
+                # 2. 뉴스 필터링 및 링크 파트
+                st.subheader(f"📰 {target_name} 핵심 뉴스 (필터링 완료)")
+                gn = GoogleNews(lang='ko', period='7d')
+                gn.search(target_name)
+                news_results = gn.results()
 
-                    # 5. 구글 뉴스
-                    st.subheader(f"📰 {target_name} 최신 뉴스")
-                    try:
-                        gn = GoogleNews(lang='ko', period='7d')
-                        gn.search(target_name)
-                        news_results = gn.results()
-                        if news_results:
-                            for i, item in enumerate(news_results[:10], 1):
-                                st.write(f"{i}. [{item.get('media', '미확인')}] {item.get('title')}")
-                        else:
-                            st.write("최근 뉴스가 없습니다.")
-                    except:
-                        st.write("뉴스 정보를 불러오지 못했습니다.")
+                if news_results:
+                    count = 0
+                    for item in news_results:
+                        title = item.get('title')
+                        link = item.get('link')
+                        media = item.get('media', '뉴스')
+
+                        # 주식과 상관없는 뉴스(광고 등) 거르기
+                        if any(word in title for word in bad_words):
+                            continue
+                        
+                        # 중요 키워드 강조
+                        is_important = any(word in title for word in good_words)
+                        prefix = "🔥 [핵심] " if is_important else "• "
+                        
+                        # 화면에 출력 (링크 연결)
+                        st.write(f"{prefix} [{media}] [{title}](%s)" % link)
+                        
+                        count += 1
+                        if count >= 10: break # 최대 10개까지만 표시
+                    
+                    if count == 0:
+                        st.write("선별된 뉴스가 없습니다.")
+                else:
+                    st.write("최근 일주일간 뉴스가 없습니다.")
+                    
         except Exception as e:
             st.error(f"오류 발생: {e}")
-# (앞부분 생략 - 이전과 동일)
-
-# 5. 구글 뉴스 (디테일 강화 버전)
-st.subheader(f"📰 {target_name} 관점 분석 뉴스")
-
-# 내가 보기 싫은 단어들 (노이즈 제거)
-bad_words = ["광고", "추천주", "무료체험", "카톡방", "종목상담", "급등주"]
-# 내가 중요하게 보는 단어들 (하이라이트)
-good_words = ["공급계약", "수주", "증자", "특허", "신사업", "최대실적"]
-
-try:
-    gn = GoogleNews(lang='ko', period='7d')
-    gn.search(target_name)
-    news_results = gn.results()
-
-    if news_results:
-        for item in news_results[:15]:
-            title = item.get('title')
-            
-            # 1. 보기 싫은 뉴스 거르기
-            if any(word in title for word in bad_words):
-                continue
-            
-            # 2. 중요한 뉴스 강조하기
-            display_title = title
-            is_important = False
-            for word in good_words:
-                if word in title:
-                    display_title = f"🔥 [핵심] {title}"
-                    is_important = True
-                    break
-            
-            # 3. 화면 출력
-            if is_important:
-                st.write(f"**{display_title}** ({item.get('media')})")
-            else:
-                st.write(f"- {title} ({item.get('media')})")
-    else:
-        st.write("최근 뉴스가 없습니다.")
-except:
-    st.write("뉴스 분석 중 오류 발생")
