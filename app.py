@@ -1,4 +1,3 @@
-    st.write("뉴스 분석 중 오류 발생")
 import streamlit as st
 import yfinance as yf
 import FinanceDataReader as fdr
@@ -12,7 +11,7 @@ st.title("📈 민구의 AI 주식 분석기")
 
 target_name = st.text_input("분석할 종목명을 입력하세요", "삼성전자")
 
-# 필터링 단어 설정 (주식과 상관없는 뉴스나 광고 제거)
+# 필터링 단어 설정
 bad_words = ["광고", "추천주", "무료체험", "카톡방", "상담", "급등주", "문의", "이벤트", "클릭"]
 good_words = ["공급계약", "수주", "증자", "특허", "신사업", "최대실적", "M&A", "인수", "발표"]
 
@@ -55,25 +54,16 @@ if st.button("분석 시작"):
                         title = item.get('title')
                         link = item.get('link')
                         media = item.get('media', '뉴스')
-
-                        # 주식과 상관없는 뉴스(광고 등) 거르기
                         if any(word in title for word in bad_words):
                             continue
-                        
-                        # 중요 키워드 강조
                         is_important = any(word in title for word in good_words)
                         prefix = "🔥 [핵심] " if is_important else "• "
-                        
-                        # 화면에 출력 (링크 연결)
                         st.write(f"{prefix} [{media}] [{title}](%s)" % link)
-                        
                         count += 1
-                        if count >= 10: break # 최대 10개까지만 표시
-                    
+                        if count >= 10: break
                     if count == 0:
                         st.write("선별된 뉴스가 없습니다.")
                 else:
                     st.write("최근 일주일간 뉴스가 없습니다.")
-                    
         except Exception as e:
-            st.error(f"오류 발생: {e}")
+            st.write("분석 중 오류 발생")
