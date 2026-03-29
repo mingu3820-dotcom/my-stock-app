@@ -1,0 +1,7 @@
+streamlit
+yfinance
+finance-datareader
+scikit-learn
+GoogleNews
+pandas
+numpy
