@@ -61,4 +61,4 @@ if st.button("분석 시작"):
                     st.info("최근 일주일간 검색된 뉴스가 없습니다.")
                     
         except Exception as e:
-            st.error("분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
+            st.error("분석 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")feedparser
