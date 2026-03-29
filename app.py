@@ -21,7 +21,7 @@ st.title("📊 민구의 주식 수급/데이터 분석기")
 target_name = st.text_input("종목명을 입력하세요", "삼성전자")
 
 if st.button("데이터 분석 시작"):
-    with st.spinner('거래대금 및 수급 데이터를 분석 중입니다...'):
+    with st.spinner('데이터를 분석 중입니다...'):
         try:
             # 1. 종목 코드 찾기
             df_all = fdr.StockListing('KRX')
@@ -33,8 +33,9 @@ if st.button("데이터 분석 시작"):
                 ticker = ticker_row['Code'].values[0]
                 full_ticker = ticker + (".KS" if ticker.isdigit() else ".KQ")
                 
-                # 2. 데이터 가져오기
-                data = yf.download(full_ticker, period="1y", progress=False).dropna()
+                # 2. 데이터 가져오기 (메모리 보호를 위해 6개월치만 사용)
+                data = yf.download(full_ticker, period="6mo", progress=False)
+                data = data.dropna()
                 
                 if not data.empty:
                     # [데이터 계산]
@@ -42,14 +43,14 @@ if st.button("데이터 분석 시작"):
                     last_volume = float(data['Volume'].iloc[-1])
                     trading_value_billion = (last_price * last_volume) / 100000000
                     
-                    # 한글 단위 변환 적용
+                    # 한글 단위 변환
                     korean_value = format_korean_currency(trading_value_billion)
                     
                     # 5일 평균 거래량 대비 비율
                     avg_vol_5d = data['Volume'].tail(5).mean()
                     vol_ratio = (last_volume / avg_vol_5d) * 100
 
-                    # 화면 상단 지표 출력
+                    # 상단 지표 출력
                     col1, col2, col3 = st.columns(3)
                     with col1:
                         st.metric("현재가", f"{int(last_price):,}원")
@@ -60,18 +61,23 @@ if st.button("데이터 분석 시작"):
 
                     st.divider()
 
-                    # 3. AI 예측 (안정성 강화)
-                    if len(data) > 30:
-                        df_ai = data.copy()
+                    # 3. AI 분석 파트 (충돌 방지 최적화)
+                    if len(data) > 20:
+                        # 데이터 복사 및 타겟 생성
+                        df_ai = data[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
                         df_ai['Target'] = (df_ai['Close'].shift(-1) > df_ai['Close']).astype(int)
-                        X = df_ai[['Open', 'High', 'Low', 'Close', 'Volume']].iloc[:-1]
-                        y = df_ai['Target'].iloc[:-1]
                         
-                        model = RandomForestClassifier(n_estimators=50, random_state=42)
+                        train_data = df_ai.dropna()
+                        X = train_data[['Open', 'High', 'Low', 'Close', 'Volume']].iloc[:-1]
+                        y = train_data['Target'].iloc[:-1]
+                        
+                        # 모델 학습 (속도를 위해 가볍게 설정)
+                        model = RandomForestClassifier(n_estimators=30, random_state=42)
                         model.fit(X, y)
                         
-                        last_features = df_ai[['Open', 'High', 'Low', 'Close', 'Volume']].tail(1)
-                        prob = model.predict_proba(last_features)[0][1]
+                        # 마지막 날 데이터로 예측
+                        last_row = train_data[['Open', 'High', 'Low', 'Close', 'Volume']].tail(1)
+                        prob = model.predict_proba(last_row)[0][1]
                         
                         st.success(f"📈 AI 분석 결과: 내일 상승 예측 확률 **{prob*100:.1f}%**")
                     
@@ -81,11 +87,11 @@ if st.button("데이터 분석 시작"):
                     feed = feedparser.parse(rss_url)
 
                     if feed.entries:
-                        for entry in feed.entries[:10]:
+                        for entry in feed.entries[:8]:
                             title = entry.title.rsplit(' - ', 1)[0]
                             st.write(f"• {title}")
-                    else:
-                        st.info("최근 일주일간 뉴스가 없습니다.")
+                else:
+                    st.warning("주가 데이터를 가져올 수 없습니다.")
 
         except Exception as e:
-            st.error("데이터 로드 중 일시적인 충돌이 발생했습니다. 다시 시도해 보세요.")
+            st.error("데이터 처리 중 일시적인 지연이 발생했습니다. 다시 한번 [분석 시작]을 눌러주세요.")
