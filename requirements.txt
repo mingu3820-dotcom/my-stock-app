@@ -6,3 +6,4 @@ GoogleNews
 pandas
 numpy
 feedparser
+scikit-learn
