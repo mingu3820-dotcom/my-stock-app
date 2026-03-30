@@ -4,4 +4,3 @@ finance-datareader
 pandas
 numpy
 scipy
-feedparser
