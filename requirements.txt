@@ -1,8 +1,5 @@
 streamlit
 yfinance
-finance-datareader
-scikit-learn
-GoogleNews
+FinanceDataReader
 pandas
-numpy
 feedparser
