@@ -2,4 +2,6 @@ streamlit
 yfinance
 finance-datareader
 pandas
+numpy
+scipy
 feedparser
